@@ -811,6 +811,96 @@ i {
   }
 }
 
+.libro-container {
+  position: relative;
+  margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.libro-container:hover {
+  transform: translateY(-5px);
+}
+
+.prestamo-info {
+  background-color: #fff;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  padding: 0.75rem;
+  margin-top: -5px; /* Para unirlo visualmente con la tarjeta */
+  border-top: 2px solid #ff4444;
+}
+
+.prestamo-badge {
+  display: inline-block;
+  color: orange;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prestamo-details {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.prestamo-field {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.prestamo-label {
+  font-weight: 600;
+  margin-right: 0.5rem;
+  color: #333;
+  min-width: 60px;
+}
+
+.prestamo-value {
+  flex: 1;
+}
+
+/* Estilos para la cuadrícula de libros */
+.row-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+
+.search-bar {
+  margin: 20px 0;
+  padding: 0 75px;
+}
+
+.search-bar input {
+  width: 100%;
+  max-width: 500px;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 16px;
+  outline: none;
+  transition: border 0.3s;
+}
+
+.search-bar input:focus {
+  border-color: #004080;
+}
+
+.search-results {
+  margin-top: 20px;
+  padding: 0 15px;
+}
+
+.search-results h3 {
+  color: var(--azul-marino-oscuro);
+  margin-bottom: 15px;
+}
+
 .form-book {
   width: 70%;
   height: auto;

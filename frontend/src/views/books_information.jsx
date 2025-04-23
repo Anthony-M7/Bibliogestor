@@ -62,10 +62,6 @@ function Books_information() {
           (fechaDevolucion - hoy) / (1000 * 60 * 60 * 24)
         );
 
-        // console.log("Fecha de devolución:", fechaDevolucion);
-        // console.log("Fecha actual:", hoy);
-        // console.log("Días restantes:", diasRestantes);
-
         if (diasRestantes <= 8 && diasRestantes > 0) {
           setMensajeDevolucion(
             "⚠️ La fecha de devolución está próxima: " + data.fecha_devolucion
@@ -167,21 +163,6 @@ function Books_information() {
       console.error("❌ Error al aplicar sanción:", error.message);
     }
   };
-
-  // const handleEditClick = (book) => {
-  //   setSelectedBook(book); // Guarda el libro seleccionado
-  //   setIsEditOpen(true);   // Abre la modal
-  // };
-
-  // // 📌 Cargar lista de autores al montar el componente
-  // useEffect(() => {
-  //   const cargarAutores = async () => {
-  //     const data = await getAutores();
-  //     setAutores(data);
-  //     setValue("autor", ""); // Restablece el valor del select al cargar
-  //   };
-  //   cargarAutores();
-  // }, []);
 
   if (isLoading) return <p>Cargando...</p>;
   if (error) return <p>Error: {error}</p>;

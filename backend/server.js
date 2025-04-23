@@ -8,14 +8,18 @@ require("dotenv").config();
 
 const app = express();
 
-// 🔹 Habilita CORS para permitir acceso a la imagen
-app.use(
-  cors({
-    origin: "*", // Permite cualquier origen (ajústalo si es necesario)
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
+// Configuración específica para CORS
+const corsOptions = {
+  origin: 'http://localhost:5173', // DEBE ser exactamente tu origen frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Admin-Key'],
+  credentials: true // Solo si realmente necesitas enviar cookies
+};
+
+app.use(cors(corsOptions));
+
+// Manejo explícito de OPTIONS
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // 📌 Servir la carpeta 'uploads' de manera estática
@@ -335,6 +339,129 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
+app.put('/editar_usuario/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    nombres,
+    apellidos,
+    cedula,
+    genero,
+    correo,
+    fechaNacimiento,
+    password,
+    pregunta_seguridad,
+    respuesta_seguridad
+  } = req.body;
+
+  // 1. Validar que el ID es numérico
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID de usuario no válido"
+    });
+  }
+
+  // 2. Validar campos obligatorios
+  if (!nombres || !apellidos || !cedula || !genero || !correo || !fechaNacimiento) {
+    return res.status(400).json({
+      success: false,
+      message: "Faltan campos obligatorios"
+    });
+  }
+
+  try {
+    // 3. Verificar si el usuario existe
+    const usuarioExistente = await dbGet(
+      'SELECT id FROM usuarios WHERE id = ?',
+      [id]
+    );
+
+    if (!usuarioExistente) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado"
+      });
+    }
+
+    // 4. Verificar si el email ya está en uso por otro usuario
+    const emailEnUso = await dbGet(
+      'SELECT id FROM usuarios WHERE email = ? AND id != ?',
+      [correo, id]
+    );
+
+    if (emailEnUso) {
+      return res.status(400).json({
+        success: false,
+        message: "El correo electrónico ya está en uso por otro usuario"
+      });
+    }
+
+    // 5. Verificar si la cédula ya está en uso por otro usuario
+    const cedulaEnUso = await dbGet(
+      'SELECT id FROM usuarios WHERE cedula = ? AND id != ?',
+      [cedula, id]
+    );
+
+    if (cedulaEnUso) {
+      return res.status(400).json({
+        success: false,
+        message: "La cédula ya está en uso por otro usuario"
+      });
+    }
+
+    // 6. Preparar los datos para actualizar
+    let updateData = {
+      nombre: nombres,
+      apellidos,
+      cedula,
+      genero,
+      email: correo,
+      fecha_nacimiento: fechaNacimiento,
+      pregunta_seguridad,
+      respuesta_seguridad
+    };
+
+    // 7. Si se proporcionó contraseña, hashearla
+    if (password) {
+      const saltRounds = 10;
+      updateData.contrasena = await bcrypt.hash(password, saltRounds);
+    }
+
+    // 8. Construir la consulta SQL dinámicamente
+    const setClause = Object.keys(updateData)
+      .filter(key => updateData[key] !== undefined)
+      .map(key => `${key} = ?`)
+      .join(', ');
+
+    const values = Object.values(updateData)
+      .filter(value => value !== undefined);
+
+    // 9. Ejecutar la actualización
+    await dbRun(
+      `UPDATE usuarios SET ${setClause} WHERE id = ?`,
+      [...values, id]
+    );
+
+    // 10. Respuesta exitosa
+    res.json({
+      success: true,
+      message: "Usuario actualizado correctamente",
+      usuario: {
+        id,
+        ...updateData
+      }
+    });
+
+  } catch (error) {
+    console.error("Error al actualizar usuario:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error al actualizar el usuario",
+      error: error.message
+    });
+  }
+});
+
 app.get("/perfil/:id", async (req, res) => {
   try {
     const userId = req.params.id;
@@ -476,6 +603,67 @@ app.delete("/usuarios/:id", async (req, res) => {
   } catch (error) {
     console.error("❌ Error al eliminar el usuario:", error.message);
     res.status(500).json({ message: "Error al eliminar el usuario", error: error.message });
+  }
+});
+
+app.get('/buscar', async (req, res) => {
+  const { termino } = req.query;
+  
+  if (!termino || termino.trim() === '') {
+    return res.status(400).json({ error: 'Proporcione un término de búsqueda' });
+  }
+
+  try {
+    const searchTerm = `%${termino.trim()}%`;
+    
+    const query = `
+      SELECT 
+        l.*,
+        a.nombre as autor_nombre,
+        u.nombre || ' ' || u.apellidos as prestado_a,  -- Concatenar nombre y apellidos
+        p.fecha_devolucion,
+        CASE WHEN p.id IS NOT NULL THEN true ELSE false END as prestado,
+        (
+          SELECT GROUP_CONCAT(g.nombre, ', ')
+          FROM generos g
+          JOIN libro_genero lg ON g.id = lg.genero_id
+          WHERE lg.libro_id = l.id
+        ) as generos
+      FROM libros l
+      LEFT JOIN autores a ON l.autor_id = a.id
+      LEFT JOIN prestamos p ON l.id = p.libro_id AND p.devuelto = false
+      LEFT JOIN usuarios u ON p.usuario_id = u.id  -- JOIN con la tabla usuarios
+      LEFT JOIN libro_genero lg ON l.id = lg.libro_id
+      LEFT JOIN generos g ON lg.genero_id = g.id
+      WHERE l.titulo LIKE ? OR a.nombre LIKE ? OR g.nombre LIKE ?
+      GROUP BY l.id
+    `;
+    
+    const resultados = await dbAll(query, [searchTerm, searchTerm, searchTerm]);
+    
+    // Formatear la respuesta
+    const resultadosFormateados = resultados.map(libro => ({
+      id: libro.id,
+      titulo: libro.titulo,
+      autor: {
+        id: libro.autor_id,
+        nombre: libro.autor_nombre
+      },
+      descripcion: libro.descripcion,
+      categoria: libro.categoria,
+      disponible: libro.disponible,
+      imagen_url: libro.imagen_url || null,
+      generos: libro.generos ? libro.generos.split(', ').filter(g => g) : [],
+      prestado: libro.prestado || false,
+      prestado_a: libro.prestado_a || null,  // Ahora contendrá el nombre completo
+      fecha_devolucion: libro.fecha_devolucion || null,
+      estado: libro.prestado ? "Prestado" : "Disponible"
+    }));
+
+    res.json(resultadosFormateados);
+  } catch (error) {
+    console.error('Error en búsqueda:', error);
+    res.status(500).json({ error: 'Error al buscar libros' });
   }
 });
 
